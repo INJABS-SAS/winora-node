@@ -1,0 +1,5607 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Winora API",
+    "version": "1",
+    "description": "API de Winora para integradores: cobros, reembolsos, cartera y suscripciones. Usa una llave `wk_test_…` para probar (no mueve plata) y `wk_live_…` en producción. Toda respuesta viene en `{ ok: true, data }` o `{ ok: false, error: { code, message } }`. Montos en pesos enteros. Guía completa: https://merchant.winorapay.com/docs"
+  },
+  "servers": [
+    {
+      "url": "https://api.winorapay.com/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Cobros",
+      "description": "Crear un cobro devuelve el link del checkout alojado por Winora."
+    },
+    {
+      "name": "Reembolsos",
+      "description": "Reembolsos totales o parciales de un cobro aprobado con tarjeta."
+    },
+    {
+      "name": "Cartera",
+      "description": "Deudas y deudores: cada deuda tiene su propio link de pago."
+    },
+    {
+      "name": "Suscripciones",
+      "description": "Planes y suscripciones con cobro recurrente (requiere el módulo activo)."
+    }
+  ],
+  "paths": {
+    "/charges": {
+      "get": {
+        "tags": [
+          "Cobros"
+        ],
+        "summary": "Listar transacciones (filtros + paginación)",
+        "operationId": "getCharges",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "DECLINED",
+                "VOIDED",
+                "ERROR",
+                "REFUNDED",
+                "EXPIRED",
+                "ABANDONED"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "En la API pública se ignora: el modo lo define la llave (wk_test_ / wk_live_).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "test",
+                "live"
+              ]
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "card",
+                "pse",
+                "nequi",
+                "daviplata",
+                "transfiya",
+                "efecty",
+                "bancolombia",
+                "cash"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "link",
+                "token",
+                "api",
+                "plugin",
+                "checkout"
+              ]
+            }
+          },
+          {
+            "name": "dateFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "dateTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "amountMin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "amountMax",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "meta"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Transaction"
+                          }
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/PageMeta"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cobros"
+        ],
+        "summary": "Crear un cobro (devuelve el link de pago alojado)",
+        "operationId": "postCharges",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "COP"
+                    ],
+                    "default": "COP"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "test",
+                      "live"
+                    ],
+                    "description": "En la API pública se ignora: el modo lo define la llave (wk_test_ / wk_live_)."
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "customerEmail": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "customerFirstName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "customerLastName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "customerDocType": {
+                    "type": "string",
+                    "enum": [
+                      "CC",
+                      "NIT",
+                      "CE",
+                      "TI",
+                      "PP"
+                    ]
+                  },
+                  "customerDocNumber": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 30
+                  },
+                  "customerPhone": {
+                    "type": "string",
+                    "pattern": "^\\+?\\d{7,15}$"
+                  },
+                  "customerCity": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 80
+                  },
+                  "customerAddress": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 200
+                  },
+                  "idempotencyKey": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 100
+                  },
+                  "saveCard": {
+                    "type": "boolean"
+                  },
+                  "paymentTokenId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "returnUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "amount",
+                  "reference",
+                  "customerEmail"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Charge"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/charges/{id}": {
+      "get": {
+        "tags": [
+          "Cobros"
+        ],
+        "summary": "Consultar una transacción",
+        "operationId": "getChargesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Transaction"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      }
+    },
+    "/charges/{id}/refunds": {
+      "get": {
+        "tags": [
+          "Reembolsos"
+        ],
+        "summary": "Listar reembolsos de un cobro",
+        "operationId": "getChargesIdRefunds",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Refund"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Reembolsos"
+        ],
+        "summary": "Reembolsar un cobro (total o parcial)",
+        "operationId": "postChargesIdRefunds",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 255
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Refund"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/debtors": {
+      "post": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Crear un deudor (o traer el que ya existe con ese documento)",
+        "operationId": "postDebtors",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fullName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "docType": {
+                    "type": "string",
+                    "enum": [
+                      "CC",
+                      "NIT",
+                      "CE",
+                      "TI",
+                      "PP"
+                    ]
+                  },
+                  "docNumber": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fullName"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Debtor"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/receivables": {
+      "get": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Listar deudas (por referencia, estado, documento o vencimiento)",
+        "operationId": "getReceivables",
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "partially_paid",
+                "paid",
+                "voided"
+              ]
+            }
+          },
+          {
+            "name": "debtorDoc",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 20
+            }
+          },
+          {
+            "name": "dueFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "dueTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "meta"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Receivable"
+                          }
+                        },
+                        "meta": {
+                          "$ref": "#/components/schemas/PageMeta"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Crear una deuda (con su deudor) y obtener su link de pago",
+        "operationId": "postReceivables",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "debtor": {
+                    "type": "object",
+                    "properties": {
+                      "fullName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "docType": {
+                        "type": "string",
+                        "enum": [
+                          "CC",
+                          "NIT",
+                          "CE",
+                          "TI",
+                          "PP"
+                        ]
+                      },
+                      "docNumber": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email"
+                      },
+                      "phone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "fullName"
+                    ],
+                    "additionalProperties": true
+                  },
+                  "projectCode": {
+                    "type": "string",
+                    "maxLength": 30
+                  },
+                  "concept": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "externalRef": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "lateTiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "offsetDays": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "fixed",
+                            "percent"
+                          ]
+                        },
+                        "value": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "offsetDays",
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 3
+                  },
+                  "amountOptions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 1000,
+                          "maximum": 50000000,
+                          "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "amount"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 2
+                  }
+                },
+                "required": [
+                  "debtor",
+                  "concept",
+                  "amount",
+                  "dueDate"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Receivable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/receivables/{id}": {
+      "get": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Consultar una deuda",
+        "operationId": "getReceivablesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Receivable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Corregir una deuda pendiente (concepto, referencia, monto, vencimiento…)",
+        "operationId": "patchReceivablesId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "concept": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "externalRef": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "dueDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "lateTiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "offsetDays": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 365
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "fixed",
+                            "percent"
+                          ]
+                        },
+                        "value": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "offsetDays",
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 3
+                  },
+                  "amountOptions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 1000,
+                          "maximum": 50000000,
+                          "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "amount"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 2
+                  },
+                  "projectCode": {
+                    "type": "string",
+                    "maxLength": 30
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Receivable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/receivables/{id}/payments": {
+      "post": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Registrar un pago recibido por fuera de Winora",
+        "operationId": "postReceivablesIdPayments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "transfer",
+                      "deposit",
+                      "card_terminal",
+                      "other"
+                    ]
+                  },
+                  "paidOn": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "amount",
+                  "method",
+                  "paidOn"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Receivable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/receivables/{id}/void": {
+      "post": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Anular una deuda pendiente (el link deja de cobrar)",
+        "operationId": "postReceivablesIdVoid",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Receivable"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/receivables/batch": {
+      "post": {
+        "tags": [
+          "Cartera"
+        ],
+        "summary": "Crear varias deudas (hasta 200); el resultado dice cuál quedó",
+        "operationId": "postReceivablesBatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "debtor": {
+                          "type": "object",
+                          "properties": {
+                            "fullName": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "docType": {
+                              "type": "string",
+                              "enum": [
+                                "CC",
+                                "NIT",
+                                "CE",
+                                "TI",
+                                "PP"
+                              ]
+                            },
+                            "docNumber": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "type": "string",
+                              "format": "email"
+                            },
+                            "phone": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "fullName"
+                          ],
+                          "additionalProperties": true
+                        },
+                        "projectCode": {
+                          "type": "string",
+                          "maxLength": 30
+                        },
+                        "concept": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "externalRef": {
+                          "type": "string",
+                          "maxLength": 60
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 1000,
+                          "maximum": 50000000,
+                          "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                        },
+                        "dueDate": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                        },
+                        "lateTiers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "offsetDays": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 365
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "fixed",
+                                  "percent"
+                                ]
+                              },
+                              "value": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              }
+                            },
+                            "required": [
+                              "offsetDays",
+                              "kind",
+                              "value"
+                            ],
+                            "additionalProperties": true
+                          },
+                          "maxItems": 3
+                        },
+                        "amountOptions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "label": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 1000,
+                                "maximum": 50000000,
+                                "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                              }
+                            },
+                            "required": [
+                              "label",
+                              "amount"
+                            ],
+                            "additionalProperties": true
+                          },
+                          "maxItems": 2
+                        }
+                      },
+                      "required": [
+                        "debtor",
+                        "concept",
+                        "amount",
+                        "dueDate"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "minItems": 1,
+                    "maxItems": 200
+                  }
+                },
+                "required": [
+                  "items"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ReceivablesBatchResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscription-plans": {
+      "get": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Listar planes del comercio",
+        "operationId": "getSubscriptionPlans",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Crear plan de suscripción",
+        "operationId": "postSubscriptionPlans",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "amountMinor": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 50000000,
+                    "description": "Pesos colombianos enteros (no centavos): 50000 son $50.000."
+                  },
+                  "currency": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 3,
+                    "default": "COP"
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "day",
+                      "week",
+                      "month",
+                      "year"
+                    ]
+                  },
+                  "intervalCount": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 12,
+                    "default": 1
+                  },
+                  "allowedMethods": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [
+                      "card"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "amountMinor",
+                  "interval"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionPlan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscription-plans/{planId}": {
+      "get": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Detalle de plan",
+        "operationId": "getSubscriptionPlansPlanId",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriptionPlan"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      }
+    },
+    "/subscriptions": {
+      "get": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Listar suscripciones del comercio",
+        "operationId": "getSubscriptions",
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "past_due",
+                "paused",
+                "canceled"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Subscription"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Crear una suscripción con una tarjeta ya guardada",
+        "operationId": "postSubscriptions",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "planId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "customerEmail": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "customerFirstName": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "customerLastName": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "customerPhone": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "customerDocType": {
+                    "type": "string",
+                    "maxLength": 10
+                  },
+                  "customerDocNumber": {
+                    "type": "string",
+                    "maxLength": 20
+                  },
+                  "paymentTokenId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Tarjeta ya guardada del cliente en Winora. Sin ella la suscripción no tiene con qué cobrarse: lo normal es que el cliente se suscriba en la página alojada /subscribe/<planId>."
+                  }
+                },
+                "required": [
+                  "planId",
+                  "customerEmail"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}": {
+      "get": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Detalle de suscripción",
+        "operationId": "getSubscriptionsSubId",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}/cancel": {
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Cancelar suscripción",
+        "operationId": "postSubscriptionsSubIdCancel",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "atPeriodEnd": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}/change-plan": {
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Cambiar plan (aplica al próximo período)",
+        "operationId": "postSubscriptionsSubIdChangePlan",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newPlanId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "newPlanId"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}/invoices": {
+      "get": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Historial de cobros de la suscripción",
+        "operationId": "getSubscriptionsSubIdInvoices",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXRead"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}/pause": {
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Pausar suscripción",
+        "operationId": "postSubscriptionsSubIdPause",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    },
+    "/subscriptions/{subId}/resume": {
+      "post": {
+        "tags": [
+          "Suscripciones"
+        ],
+        "summary": "Reanudar suscripción",
+        "operationId": "postSubscriptionsSubIdResume",
+        "parameters": [
+          {
+            "name": "subId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Recomendada en toda escritura. Repetir la petición con la misma llave devuelve el mismo resultado en vez de crear otro.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "data"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Subscription"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "409": {
+            "$ref": "#/components/responses/E409Idempotent"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "5XX": {
+            "$ref": "#/components/responses/E5XXIdempotent"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "payment.approved": {
+      "post": {
+        "summary": "Evento payment.approved",
+        "operationId": "webhookPaymentApproved",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "payment.approved"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "payment.approved"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "transaction"
+                    ],
+                    "properties": {
+                      "transaction": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "payment.declined": {
+      "post": {
+        "summary": "Evento payment.declined",
+        "operationId": "webhookPaymentDeclined",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "payment.declined"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "payment.declined"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "transaction"
+                    ],
+                    "properties": {
+                      "transaction": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "payment.error": {
+      "post": {
+        "summary": "Evento payment.error",
+        "operationId": "webhookPaymentError",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "payment.error"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "payment.error"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "transaction"
+                    ],
+                    "properties": {
+                      "transaction": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "payment.refunded": {
+      "post": {
+        "summary": "Evento payment.refunded",
+        "operationId": "webhookPaymentRefunded",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "payment.refunded"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "payment.refunded"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "transaction"
+                    ],
+                    "properties": {
+                      "transaction": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "payment.voided": {
+      "post": {
+        "summary": "Evento payment.voided",
+        "operationId": "webhookPaymentVoided",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "payment.voided"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "payment.voided"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "transaction"
+                    ],
+                    "properties": {
+                      "transaction": {
+                        "$ref": "#/components/schemas/Transaction"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.created": {
+      "post": {
+        "summary": "Evento receivable.created",
+        "operationId": "webhookReceivableCreated",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.created"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.created"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.overdue": {
+      "post": {
+        "summary": "Evento receivable.overdue",
+        "operationId": "webhookReceivableOverdue",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.overdue"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.overdue"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.paid": {
+      "post": {
+        "summary": "Evento receivable.paid",
+        "operationId": "webhookReceivablePaid",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.paid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.paid"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.partially_paid": {
+      "post": {
+        "summary": "Evento receivable.partially_paid",
+        "operationId": "webhookReceivablePartiallyPaid",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.partially_paid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.partially_paid"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.reopened": {
+      "post": {
+        "summary": "Evento receivable.reopened",
+        "operationId": "webhookReceivableReopened",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.reopened"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.reopened"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "receivable.voided": {
+      "post": {
+        "summary": "Evento receivable.voided",
+        "operationId": "webhookReceivableVoided",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "receivable.voided"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "receivable.voided"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "receivable",
+                      "eventId"
+                    ],
+                    "properties": {
+                      "receivable": {
+                        "$ref": "#/components/schemas/Receivable"
+                      },
+                      "eventId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Id del cambio en el historial de la deuda. Es el mismo en cada reintento: úsalo para descartar repetidos."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "subscription.canceled": {
+      "post": {
+        "summary": "Evento subscription.canceled",
+        "operationId": "webhookSubscriptionCanceled",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "subscription.canceled"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "subscription.canceled"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "subscription"
+                    ],
+                    "properties": {
+                      "subscription": {
+                        "$ref": "#/components/schemas/Subscription"
+                      },
+                      "invoice": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      },
+                      "plan": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "subscription.charged": {
+      "post": {
+        "summary": "Evento subscription.charged",
+        "operationId": "webhookSubscriptionCharged",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "subscription.charged"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "subscription.charged"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "subscription"
+                    ],
+                    "properties": {
+                      "subscription": {
+                        "$ref": "#/components/schemas/Subscription"
+                      },
+                      "invoice": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      },
+                      "plan": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "subscription.created": {
+      "post": {
+        "summary": "Evento subscription.created",
+        "operationId": "webhookSubscriptionCreated",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "subscription.created"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "subscription.created"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "subscription"
+                    ],
+                    "properties": {
+                      "subscription": {
+                        "$ref": "#/components/schemas/Subscription"
+                      },
+                      "invoice": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      },
+                      "plan": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "subscription.payment_failed": {
+      "post": {
+        "summary": "Evento subscription.payment_failed",
+        "operationId": "webhookSubscriptionPaymentFailed",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "subscription.payment_failed"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "subscription.payment_failed"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "subscription"
+                    ],
+                    "properties": {
+                      "subscription": {
+                        "$ref": "#/components/schemas/Subscription"
+                      },
+                      "invoice": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      },
+                      "plan": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    },
+    "subscription.payment_method_required": {
+      "post": {
+        "summary": "Evento subscription.payment_method_required",
+        "operationId": "webhookSubscriptionPaymentMethodRequired",
+        "description": "Winora hace POST a cada endpoint configurado en el panel. Verifica la cabecera `Winora-Signature` con el cuerpo crudo y responde 2xx a todo evento, aunque no lo uses: cualquier otra respuesta se reintenta.",
+        "parameters": [
+          {
+            "name": "Winora-Signature",
+            "in": "header",
+            "required": true,
+            "description": "`t=<unix>,v1=<hex>`: v1 = HMAC-SHA256(secreto `whsec_…`, `<t>.<cuerpo crudo>`).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Winora-Event",
+            "in": "header",
+            "required": true,
+            "description": "El tipo de evento, igual a `type` en el cuerpo.",
+            "schema": {
+              "const": "subscription.payment_method_required"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "type",
+                  "createdAt",
+                  "data"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id de la entrega."
+                  },
+                  "type": {
+                    "const": "subscription.payment_method_required"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "required": [
+                      "subscription"
+                    ],
+                    "properties": {
+                      "subscription": {
+                        "$ref": "#/components/schemas/Subscription"
+                      },
+                      "invoice": {
+                        "$ref": "#/components/schemas/SubscriptionInvoice"
+                      },
+                      "plan": {
+                        "$ref": "#/components/schemas/SubscriptionPlan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Recibido. Cualquier otro código se reintenta."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Tu llave de API: `Authorization: Bearer wk_test_…` o `wk_live_…`."
+      }
+    },
+    "schemas": {
+      "Charge": {
+        "type": "object",
+        "properties": {
+          "transaction": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "number"
+              },
+              "currency": {
+                "type": "string"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "APPROVED",
+                  "DECLINED",
+                  "VOIDED",
+                  "ERROR",
+                  "REFUNDED",
+                  "EXPIRED",
+                  "ABANDONED"
+                ]
+              },
+              "checkoutState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "OPENED",
+                      "PAYMENT_SUBMITTED",
+                      "PAYMENT_ABORTED",
+                      "LEFT_BY_PAYER"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checkoutOpenedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "checkoutSubmittedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "checkoutLeftAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "paymentMethod": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "card",
+                      "pse",
+                      "nequi",
+                      "daviplata",
+                      "transfiya",
+                      "efecty",
+                      "bancolombia",
+                      "cash"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "providerTxId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerEmail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerFirstName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerLastName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerDocType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "CC",
+                      "NIT",
+                      "CE",
+                      "TI",
+                      "PP"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "customerDocNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerPhone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerCity": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "customerAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "authNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cardBrand": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cardLast4": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cus": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bank": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "detailedStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "acquirerResponseCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "acquirerResponseMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cardPan": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cardType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cardCountry": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "installments": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "ipAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "refundedAmount": {
+                "type": "number"
+              },
+              "winoraFee": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "returnUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "test",
+                  "live"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "link",
+                  "token",
+                  "api",
+                  "plugin",
+                  "checkout"
+                ]
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "amount",
+              "currency",
+              "reference",
+              "description",
+              "status",
+              "checkoutState",
+              "checkoutOpenedAt",
+              "checkoutSubmittedAt",
+              "checkoutLeftAt",
+              "paymentMethod",
+              "providerTxId",
+              "customerEmail",
+              "customerFirstName",
+              "customerLastName",
+              "customerDocType",
+              "customerDocNumber",
+              "customerPhone",
+              "customerCity",
+              "customerAddress",
+              "authNumber",
+              "cardBrand",
+              "cardLast4",
+              "cus",
+              "bank",
+              "detailedStatus",
+              "acquirerResponseCode",
+              "acquirerResponseMessage",
+              "cardPan",
+              "cardType",
+              "cardCountry",
+              "installments",
+              "ipAddress",
+              "refundedAmount",
+              "winoraFee",
+              "returnUrl",
+              "mode",
+              "source",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": true
+          },
+          "checkoutUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "transaction",
+          "checkoutUrl"
+        ]
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "DECLINED",
+              "VOIDED",
+              "ERROR",
+              "REFUNDED",
+              "EXPIRED",
+              "ABANDONED"
+            ]
+          },
+          "checkoutState": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "OPENED",
+                  "PAYMENT_SUBMITTED",
+                  "PAYMENT_ABORTED",
+                  "LEFT_BY_PAYER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checkoutOpenedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkoutSubmittedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkoutLeftAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentMethod": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "pse",
+                  "nequi",
+                  "daviplata",
+                  "transfiya",
+                  "efecty",
+                  "bancolombia",
+                  "cash"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerTxId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerFirstName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerLastName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerDocType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CC",
+                  "NIT",
+                  "CE",
+                  "TI",
+                  "PP"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "customerDocNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerCity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cardBrand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cardLast4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bank": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detailedStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acquirerResponseCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acquirerResponseMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cardPan": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cardType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cardCountry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "installments": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "ipAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refundedAmount": {
+            "type": "number"
+          },
+          "winoraFee": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "returnUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "link",
+              "token",
+              "api",
+              "plugin",
+              "checkout"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "amount",
+          "currency",
+          "reference",
+          "description",
+          "status",
+          "checkoutState",
+          "checkoutOpenedAt",
+          "checkoutSubmittedAt",
+          "checkoutLeftAt",
+          "paymentMethod",
+          "providerTxId",
+          "customerEmail",
+          "customerFirstName",
+          "customerLastName",
+          "customerDocType",
+          "customerDocNumber",
+          "customerPhone",
+          "customerCity",
+          "customerAddress",
+          "authNumber",
+          "cardBrand",
+          "cardLast4",
+          "cus",
+          "bank",
+          "detailedStatus",
+          "acquirerResponseCode",
+          "acquirerResponseMessage",
+          "cardPan",
+          "cardType",
+          "cardCountry",
+          "installments",
+          "ipAddress",
+          "refundedAmount",
+          "winoraFee",
+          "returnUrl",
+          "mode",
+          "source",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Refund": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "failed"
+            ]
+          },
+          "providerRefundId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "transactionId",
+          "amount",
+          "reason",
+          "status",
+          "providerRefundId",
+          "createdAt"
+        ]
+      },
+      "Receivable": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "externalRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "concept": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer"
+          },
+          "chargesTotal": {
+            "type": "integer"
+          },
+          "balance": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "dueDate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "partially_paid",
+              "paid",
+              "voided"
+            ]
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "debtor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "fullName": {
+                "type": "string"
+              },
+              "docType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "CC",
+                      "NIT",
+                      "CE",
+                      "TI",
+                      "PP"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "docNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "fullName",
+              "docType",
+              "docNumber",
+              "email",
+              "phone"
+            ],
+            "additionalProperties": true
+          },
+          "form": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "answers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "value"
+                      ],
+                      "additionalProperties": true
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "answers"
+                ],
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paidAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "voidedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "externalRef",
+          "concept",
+          "amount",
+          "chargesTotal",
+          "balance",
+          "currency",
+          "dueDate",
+          "status",
+          "overdue",
+          "mode",
+          "project",
+          "debtor",
+          "form",
+          "payUrl",
+          "paidAt",
+          "voidedAt",
+          "createdAt"
+        ]
+      },
+      "ReceivablesBatchResult": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "receivable": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "externalRef": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "concept": {
+                          "type": "string"
+                        },
+                        "amount": {
+                          "type": "integer"
+                        },
+                        "chargesTotal": {
+                          "type": "integer"
+                        },
+                        "balance": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "dueDate": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "partially_paid",
+                            "paid",
+                            "voided"
+                          ]
+                        },
+                        "overdue": {
+                          "type": "boolean"
+                        },
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "test",
+                            "live"
+                          ]
+                        },
+                        "project": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "debtor": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "fullName": {
+                              "type": "string"
+                            },
+                            "docType": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "CC",
+                                    "NIT",
+                                    "CE",
+                                    "TI",
+                                    "PP"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "docNumber": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "email": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "phone": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "fullName",
+                            "docType",
+                            "docNumber",
+                            "email",
+                            "phone"
+                          ],
+                          "additionalProperties": true
+                        },
+                        "form": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "answers": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ],
+                                    "additionalProperties": true
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "answers"
+                              ],
+                              "additionalProperties": true
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "payUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "paidAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "voidedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "externalRef",
+                        "concept",
+                        "amount",
+                        "chargesTotal",
+                        "balance",
+                        "currency",
+                        "dueDate",
+                        "status",
+                        "overdue",
+                        "mode",
+                        "project",
+                        "debtor",
+                        "form",
+                        "payUrl",
+                        "paidAt",
+                        "voidedAt",
+                        "createdAt"
+                      ],
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "ok",
+                    "receivable"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer"
+                    },
+                    "ok": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": true
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "ok",
+                    "error"
+                  ],
+                  "additionalProperties": true
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "created",
+          "failed",
+          "items"
+        ]
+      },
+      "Debtor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "docType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "CC",
+                  "NIT",
+                  "CE",
+                  "TI",
+                  "PP"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "docNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statementUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "docType",
+          "docNumber",
+          "email",
+          "phone",
+          "statementUrl"
+        ]
+      },
+      "SubscriptionPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orgId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Pesos colombianos enteros (no centavos), a pesar del nombre."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "intervalCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "allowedMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "orgId",
+          "name",
+          "description",
+          "amountMinor",
+          "currency",
+          "interval",
+          "intervalCount",
+          "active",
+          "allowedMethods",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orgId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "past_due",
+              "paused",
+              "canceled"
+            ]
+          },
+          "customerEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "customerFirstName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerLastName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerPhone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerDocType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerDocNumber": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentTokenId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "test",
+              "live"
+            ]
+          },
+          "currentPeriodStart": {
+            "type": "string"
+          },
+          "currentPeriodEnd": {
+            "type": "string"
+          },
+          "nextBillingDate": {
+            "type": "string"
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean"
+          },
+          "canceledAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failedAttemptCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pastDueSince": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "orgId",
+          "planId",
+          "status",
+          "customerEmail",
+          "customerFirstName",
+          "customerLastName",
+          "customerPhone",
+          "customerDocType",
+          "customerDocNumber",
+          "paymentTokenId",
+          "mode",
+          "currentPeriodStart",
+          "currentPeriodEnd",
+          "nextBillingDate",
+          "cancelAtPeriodEnd",
+          "canceledAt",
+          "failedAttemptCount",
+          "pastDueSince",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SubscriptionInvoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subscriptionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Pesos colombianos enteros (no centavos), a pesar del nombre."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid",
+              "failed",
+              "voided"
+            ]
+          },
+          "transactionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subscriptionId",
+          "periodStart",
+          "periodEnd",
+          "amountMinor",
+          "currency",
+          "status",
+          "transactionId",
+          "attemptCount",
+          "nextAttemptAt",
+          "lastError",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "required": [
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Código estable para decidir en tu código, p. ej. `payment/invalid-customer-email`."
+              },
+              "message": {
+                "type": "string",
+                "description": "Mensaje en español, apto para mostrar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "E400": {
+        "description": "Datos inválidos o un dato que hay que corregir (no reintentar sin cambiarlo).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E401": {
+        "description": "Falta la llave de API o no es válida.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E403": {
+        "description": "La cuenta no puede operar (en revisión, suspendida o cerrada) o el módulo no está activo.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E404": {
+        "description": "No existe, o no es de tu cuenta.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E409": {
+        "description": "Conflicto con el estado actual del recurso.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E409Idempotent": {
+        "description": "Conflicto con el estado actual, o una Idempotency-Key reutilizada con otros datos.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E429": {
+        "description": "Demasiadas peticiones: espera y reintenta.",
+        "headers": {
+          "Retry-After": {
+            "description": "Segundos a esperar antes de repetir la petición.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E5XXRead": {
+        "description": "Error de Winora o de la pasarela: puedes reintentar.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E5XXIdempotent": {
+        "description": "Error de Winora o de la pasarela. El intento quedó registrado como fallido: repetirlo con la misma Idempotency-Key devuelve ese fallo. Consulta el estado y, si no quedó hecho, reintenta con una llave nueva. (La misma llave sirve cuando no recibiste respuesta: red caída o timeout).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E5XXNotIdempotent": {
+        "description": "Error de Winora o de la pasarela. Esta operación no acepta Idempotency-Key: no reintentes a ciegas, consulta primero si se creó.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

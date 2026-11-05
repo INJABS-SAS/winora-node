@@ -1,0 +1,64 @@
+{
+  "name": "@winorapay/node",
+  "version": "0.0.1",
+  "description": "SDK oficial de Winora para Node.js: cobros, reembolsos, cartera, suscripciones y webhooks.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "winora",
+    "pagos",
+    "payments",
+    "colombia",
+    "pse",
+    "webhooks"
+  ],
+  "homepage": "https://merchant.winorapay.com/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/INJABS-SAS/winora-node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/INJABS-SAS/winora-node/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "gen:types": "node scripts/generar-tipos.mjs",
+    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "openapi-typescript": "7.10.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}

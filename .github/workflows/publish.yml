@@ -1,0 +1,145 @@
+name: Publicar en npm
+
+# Publica @winorapay/node cuando llega la etiqueta v<versión>. La etiqueta la
+# pone el espejo desde el repo interno de Winora, junto con el commit de esa
+# versión. Desde este repo público npm firma la procedencia: cualquiera puede
+# comprobar que el paquete salió de este código y de este workflow.
+#
+# Tres jobs: "probar" construye, prueba y empaqueta (sin OIDC ni secretos);
+# "carga" comprueba el build en Node 18, 20, 22 y 24; "publicar" solo sube
+# ese mismo paquete, sin instalar ni ejecutar dependencias.
+#
+# Autenticación: publicación de confianza (OIDC), sin tokens. En npmjs.com
+# → @winorapay/node → Settings → Trusted Publisher: organización INJABS-SAS,
+# repo winora-node, workflow publish.yml, entorno npm.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  probar:
+    name: Probar y empaquetar
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.pack.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: La etiqueta apunta a un commit de main
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::La etiqueta $GITHUB_REF_NAME no está en main"
+            exit 1
+          }
+
+      - name: La etiqueta coincide con package.json
+        id: version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::La etiqueta es $TAG_VERSION pero package.json dice $PKG_VERSION"
+            exit 1
+          fi
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck && npm run build && npm test
+
+      - name: Empaquetar
+        id: pack
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          F="$RUNNER_TEMP/winorapay-node-$VERSION.tgz"
+          tar -tzf "$F"
+          echo "sha=$(sha256sum "$F" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          mv "$F" "$RUNNER_TEMP/paquete.tgz"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: paquete
+          path: ${{ runner.temp }}/paquete.tgz
+          retention-days: 7
+
+  carga:
+    name: Carga en Node ${{ matrix.node }}
+    needs: probar
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: paquete
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: require e import del paquete instalado
+        run: |
+          mkdir app && cd app && npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund ../paquete.tgz
+          node -e "const { Winora, webhooks } = require('@winorapay/node'); new Winora('wk_test_AbCdEfGhIjKlMnOp1234'); if (typeof webhooks.constructEvent !== 'function') process.exit(1);"
+          node --input-type=module -e "import { Winora, webhooks } from '@winorapay/node'; new Winora('wk_test_AbCdEfGhIjKlMnOp1234'); if (typeof webhooks.constructEvent !== 'function') process.exit(1);"
+
+  publicar:
+    name: Publicar
+    needs: [probar, carga]
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # OIDC: publicación de confianza y procedencia
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: paquete
+          path: ${{ runner.temp }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # La publicación de confianza necesita npm 11.5.1 o más.
+      - name: npm reciente
+        run: npm install -g npm@11.6.2 && npm --version
+
+      - name: Publicar en npm
+        env:
+          SHA: ${{ needs.probar.outputs.sha }}
+          VERSION: ${{ needs.probar.outputs.version }}
+          # Solo mientras la publicación de confianza no esté configurada; si
+          # lo está, npm usa OIDC.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$SHA  $RUNNER_TEMP/paquete.tgz" | sha256sum -c -
+          # Una versión que ya está en npm no se vuelve a intentar: npm no
+          # deja reemplazarla.
+          if npm view "@winorapay/node@$VERSION" version >/dev/null 2>&1; then
+            echo "La versión $VERSION ya está publicada: no hay nada que hacer."
+            exit 0
+          fi
+          # Una versión con guion (0.1.0-beta.1) no se marca como latest.
+          TAG=latest
+          case "$VERSION" in *-*) TAG=next ;; esac
+          npm publish "$RUNNER_TEMP/paquete.tgz" --provenance --access public --tag "$TAG"
